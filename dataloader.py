@@ -5,7 +5,7 @@ from pymatgen.core.composition import Composition as pmg_Composition
 
 ####
 #Data
-ele_id_dict = {"H":1, "He":2}
+
 def get_atomic_number_from_ele(ele):
    return pmg_Composition(ele).elements[0].Z
 def formula_to_id_seq(formula):
