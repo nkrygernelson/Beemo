@@ -76,20 +76,16 @@ class PredictionMLP(nn.Module):
         return self.mlp(global_representation)
     
 class BandgapPredictionModel(nn.Module):
-    def __init__(self, num_elements, embedding_dim, num_heads, num_layers, num_queries):
+    def __init__(self, num_elements, embedding_dim, num_heads, num_layers):
         super(BandgapPredictionModel, self).__init__()
         self.element_embedding = ElementEmbedding(num_elements, embedding_dim)
         self.attention_block = SelfAttentionBlock(embedding_dim, num_heads, num_layers)
-        self.motif_discovery = MotifDiscovery(embedding_dim, num_queries)
-        self.aggregation = HierarchicalAggregation(embedding_dim)
         self.prediction = PredictionMLP(embedding_dim)
     
     def forward(self, element_ids):
         embeddings = self.element_embedding(element_ids)  # Step 1
         mask = (element_ids == 0)
         attended_elements = self.attention_block(embeddings, src_key_padding_mask=mask)  # Step 2
-        motifs = self.motif_discovery(attended_elements)  # Step 3
-        global_representation = self.aggregation(motifs)  # Step 4
-        bandgap = self.prediction(global_representation).squeeze(-1) # Step 5
+        bandgap = self.prediction(attended_elements).squeeze(-1) # Step 5
         return bandgap
     

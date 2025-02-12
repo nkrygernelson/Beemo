@@ -38,7 +38,7 @@ def main():
 
     # 1) Define or import your model
     model = BandgapPredictionModel(num_elements=118, embedding_dim=128, 
-                                num_heads=4, num_layers=3, num_queries=5)
+                                num_heads=4, num_layers=3)
     model.to(device)
     #model.to(device)
     criterion = nn.MSELoss()
