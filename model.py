@@ -59,6 +59,7 @@ class HierarchicalAggregation(nn.Module):
         # Usually, we remove the extra "seq_len=1" dimension:
         return aggregated.squeeze(1)  # [batch_size, embedding_dim]
 
+
 class PredictionMLP(nn.Module):
     def __init__(self, input_dim):
         super(PredictionMLP, self).__init__()
