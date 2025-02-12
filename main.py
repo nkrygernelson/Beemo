@@ -22,7 +22,7 @@ print("Using device:", device)
 
 def main():
     preprocess = PreprocessData()
-    preprocess.sample_size = 100000
+    preprocess.sample_size = 30000
     preprocess.batch_size = 32
     train_dataloader, val_dataloader, test_dataloader = PreprocessData().preprocess_data()
     for batch_idx, (data, target) in enumerate(train_dataloader):
@@ -37,14 +37,14 @@ def main():
     # --------------------------
 
     # 1) Define or import your model
-    model = BandgapPredictionModel(num_elements=118, embedding_dim=128, 
-                                num_heads=4, num_layers=3)
+    model = BandgapPredictionModel(num_elements=118, embedding_dim=64, 
+                                num_heads=4, num_layers=5)
     model.to(device)
     #model.to(device)
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001,)
+    optimizer = optim.Adam(model.parameters(), lr=0.0005,)
 
-    num_epochs = 120
+    num_epochs = 25
 
     # 2) Prepare logs
     train_losses = []

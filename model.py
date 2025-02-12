@@ -27,38 +27,17 @@ class SelfAttentionBlock(nn.Module):
     
     def forward(self, embeddings, src_key_padding_mask=None):
         return self.transformer(embeddings, src_key_padding_mask=src_key_padding_mask)
-    
-class MotifDiscovery(nn.Module):
-    def __init__(self, embedding_dim, num_queries):
-        super(MotifDiscovery, self).__init__()
-        self.query_embeddings = nn.Parameter(torch.randn(num_queries, embedding_dim))
-        self.attention = nn.MultiheadAttention(embed_dim=embedding_dim, num_heads=4, batch_first=True)
-    
-    def forward(self, element_embeddings):
-        # Self-attention between queries and elements
-        batch_size = element_embeddings.size(0)
-        query_embeddings = self.query_embeddings.unsqueeze(0).expand(batch_size, -1, -1)  # Add batch dimension
-        attended_motifs, _ = self.attention(query_embeddings, element_embeddings, element_embeddings)
-        return attended_motifs 
-class HierarchicalAggregation(nn.Module):
+
+class AttentionPooling(nn.Module):
     def __init__(self, embedding_dim):
-        super(HierarchicalAggregation, self).__init__()
-        self.global_context = nn.Parameter(torch.randn(1, embedding_dim))
-        self.attention = nn.MultiheadAttention(embed_dim=embedding_dim, num_heads=4, batch_first = True)
-    
-    def forward(self, motif_embeddings):
-        batch_size = motif_embeddings.size(0)
+        super(AttentionPooling, self).__init__()
+        self.attention_weights = nn.Linear(embedding_dim, 1)
 
-        # Insert batch dimension, make it shape [batch_size, 1, embed_dim]
-        context = self.global_context.unsqueeze(0).expand(batch_size, 1, -1)
-        # seq_len = 1 (one token), but for each example in the batch
-
-        aggregated, _ = self.attention(context, motif_embeddings, motif_embeddings)
-        # aggregated -> [batch_size, 1, embedding_dim]
-
-        # Usually, we remove the extra "seq_len=1" dimension:
-        return aggregated.squeeze(1)  # [batch_size, embedding_dim]
-
+    def forward(self, attended_elements):
+        attention_scores = self.attention_weights(attended_elements)  # [batch, seq_len, 1]
+        attention_weights = torch.softmax(attention_scores, dim=1)  # Softmax across seq_len
+        global_representation = (attention_weights * attended_elements).sum(dim=1)  # Weighted sum
+        return global_representation
 
 
 class PredictionMLP(nn.Module):
@@ -80,12 +59,15 @@ class BandgapPredictionModel(nn.Module):
         super(BandgapPredictionModel, self).__init__()
         self.element_embedding = ElementEmbedding(num_elements, embedding_dim)
         self.attention_block = SelfAttentionBlock(embedding_dim, num_heads, num_layers)
-        self.prediction = PredictionMLP(embedding_dim)
+        self.prediction = PredictionMLP(embedding_dim)  # No aggregation
     
     def forward(self, element_ids):
         embeddings = self.element_embedding(element_ids)  # Step 1
         mask = (element_ids == 0)
         attended_elements = self.attention_block(embeddings, src_key_padding_mask=mask)  # Step 2
-        bandgap = self.prediction(attended_elements).squeeze(-1) # Step 5
+        
+        # Convert sequence of embeddings to a fixed-size vector
+        mean_representation = attended_elements.mean(dim=1)  # Step 3
+        
+        bandgap = self.prediction(mean_representation).squeeze(-1)  # Step 4
         return bandgap
-    
