@@ -10,7 +10,7 @@ class SetBasedPreprocessing:
     def __init__(self):
         self.sample_size = 30000
         self.split = [0.8, 0.1, 0.1]
-        self.property_key = "FE"
+        self.property_key = "BG"
         self.batch_size = 128
         self.max_elements = 10  # Max elements to consider per formula
     

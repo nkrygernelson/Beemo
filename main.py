@@ -18,7 +18,7 @@ print(f"Using device: {device}")
 def train_set_based_model(pooling_type='attention'):
     # Initialize preprocessing
     preprocess = SetBasedPreprocessing()
-    preprocess.sample_size = 10000  # Adjust as needed
+    preprocess.sample_size = 50000  # Adjust as needed
     preprocess.batch_size = 32
     
     # Get data loaders
@@ -36,10 +36,10 @@ def train_set_based_model(pooling_type='attention'):
     # Initialize model, loss function, and optimizer
     model = SetBasedBandgapModel(
         num_elements=118,
-        embedding_dim=128,
-        num_blocks=3,
-        num_heads=4,
-        hidden_dim=128,
+        embedding_dim=250,
+        num_blocks=5,
+        num_heads=10,
+        hidden_dim=250,
         dropout=0.1,
         pooling_type=pooling_type
     )
@@ -182,9 +182,9 @@ def train_set_based_model(pooling_type='attention'):
     max_val = max(max(test_targets), max(test_predictions))
     plt.plot([min_val, max_val], [min_val, max_val], 'r--', label='Ideal')
     
-    plt.xlabel('Actual Bandgap (eV)')
-    plt.ylabel('Predicted Bandgap (eV)')
-    plt.title('Set-Based Model: Actual vs Predicted Bandgap')
+    plt.xlabel('Actual Formation Energy(eV)')
+    plt.ylabel('Predicted Formation Energy (eV)')
+    plt.title('Set-Based Model: Actual vs Predicted FE')
     plt.legend()
     plt.grid(True)
     plt.savefig(f"predictions/set_model_{pooling_type}_actual_vs_predicted.png")
