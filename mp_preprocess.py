@@ -9,7 +9,7 @@ mpid_pbe = list(data['pbe'].keys())
 
 # Option 1: Pass your API key directly as an argument.
 with MPRester(api_key) as mpr:
-    docs = mpr.materials.summary.search(
+    docs = mpr.materials.search(
         fields=["material_id","formula_pretty", "structure"],
     )
 

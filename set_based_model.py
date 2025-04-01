@@ -23,6 +23,22 @@ class ElementEmbedding(nn.Module):
         """
         return self.embedding(element_ids)
 
+
+class FidelityEmbedding(nn.Module):
+    """Embeds the fidelity of the data."""
+    def __init__(self, num_fidelities = 3, embedding_dim=16):
+        super(FidelityEmbedding, self).__init__()
+        self.embedding = nn.Embedding(num_fidelities, embedding_dim)
+    
+    def forward(self, fidelity):
+        """
+        Args:
+            fidelity: tensor of data fidelity [batch_size]
+        Returns:
+            Embedded fidelity representations [batch_size, embedding_dim]
+        """
+        return self.embedding(fidelity)
+
 class SetAttentionBlock(nn.Module):
     """Permutation-invariant self-attention block for processing sets."""
     def __init__(self, embedding_dim, num_heads=4, dropout=0.1):
@@ -175,18 +191,20 @@ class PredictionHead(nn.Module):
 
 class SetBasedBandgapModel(nn.Module):
     """Complete model for bandgap prediction using set-based representation."""
-    def __init__(self, num_elements=118, embedding_dim=128, 
+    def __init__(self, num_elements=118, embedding_dim=128, fidelity_dim=16,
                  num_blocks=3, num_heads=4, hidden_dim=128, dropout=0.1,
                  pooling_type='attention'):
         super(SetBasedBandgapModel, self).__init__()
         self.element_embedding = ElementEmbedding(num_elements, embedding_dim)
+        self.fidelity_embedding = FidelityEmbedding(fidelity_dim, embedding_dim)
         self.deep_set = DeepSet(embedding_dim, num_blocks, num_heads, dropout, pooling_type)
         self.prediction_head = PredictionHead(embedding_dim, hidden_dim, dropout)
         
-    def forward(self, element_ids, element_weights=None):
+    def forward(self, element_ids, fidelities, element_weights=None):
         """
         Args:
             element_ids: [batch_size, max_elements] - Atomic numbers
+            fidelity: [batch_size] - Fidelity of the data
             element_weights: [batch_size, max_elements] - Fractional weights
                              (if None, will use uniform weights)
         Returns:
@@ -197,6 +215,8 @@ class SetBasedBandgapModel(nn.Module):
         
         # Embed elements
         embeddings = self.element_embedding(element_ids)
+        fidelity_embedding = self.fidelity_embedding(fidelities)
+        embeddings = embeddings + fidelity_embedding
         
         # If no weights provided, use uniform weights for non-padding elements
         if element_weights is None:
