@@ -168,3 +168,9 @@ cython_debug/
 predictions/
 data/cif_structures/
 data/mp.2019.04.01.json
+
+
+data/.DS_Store
+data/csv/
+data/misc/
+data/src/
