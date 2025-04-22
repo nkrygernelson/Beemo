@@ -26,7 +26,7 @@ class ElementEmbedding(nn.Module):
 
 class FidelityEmbedding(nn.Module):
     """Embeds the fidelity of the data."""
-    def __init__(self, num_fidelities = 3, embedding_dim=16):
+    def __init__(self, num_fidelities = 6, embedding_dim=16):
         super(FidelityEmbedding, self).__init__()
         self.embedding = nn.Embedding(num_fidelities, embedding_dim)
     
@@ -196,27 +196,23 @@ class SetBasedBandgapModel(nn.Module):
                  pooling_type='attention'):
         super(SetBasedBandgapModel, self).__init__()
         self.element_embedding = ElementEmbedding(num_elements, embedding_dim)
-        self.fidelity_embedding = FidelityEmbedding(fidelity_dim, embedding_dim)
-        self.deep_set = DeepSet(embedding_dim, num_blocks, num_heads, dropout, pooling_type)
-        self.prediction_head = PredictionHead(embedding_dim, hidden_dim, dropout)
+        self.fidelity_embedding = FidelityEmbedding(fidelity_dim, fidelity_dim)
+        self.deep_set = DeepSet(embedding_dim+fidelity_dim, num_blocks, num_heads, dropout, pooling_type)
+        self.prediction_head = PredictionHead(embedding_dim+fidelity_dim, hidden_dim, dropout)
         
     def forward(self, element_ids, fidelities, element_weights=None):
-        """
-        Args:
-            element_ids: [batch_size, max_elements] - Atomic numbers
-            fidelity: [batch_size] - Fidelity of the data
-            element_weights: [batch_size, max_elements] - Fractional weights
-                             (if None, will use uniform weights)
-        Returns:
-            Predicted bandgap [batch_size]
-        """
         # Create padding mask (True for padding elements)
         mask = (element_ids == 0)
         
         # Embed elements
-        embeddings = self.element_embedding(element_ids)
-        fidelity_embedding = self.fidelity_embedding(fidelities)
-        embeddings = embeddings + fidelity_embedding
+        element_embeddings = self.element_embedding(element_ids)  # [batch_size, max_elements, embedding_dim]
+        fidelity_embedding = self.fidelity_embedding(fidelities)  # [batch_size, fidelity_dim]
+        
+        # Expand fidelity embedding to add a dimension that matches max_elements
+        expanded_fidelity = fidelity_embedding.unsqueeze(1).expand(-1, element_embeddings.size(1), -1)
+        
+        # Concatenate along the last dimension
+        embeddings = torch.cat([element_embeddings, expanded_fidelity], dim=2)
         
         # If no weights provided, use uniform weights for non-padding elements
         if element_weights is None:

@@ -230,48 +230,51 @@ class MultiFidelityPreprocessing:
     
     def collate_fn(self, batch):
         """
-        Collate function for set-based representation.
+        Collate function for multi-fidelity set-based representation.
         
         Args:
-            batch: List of (element_ids, element_weights, bandgap) tuples
+            batch: List of (element_ids, element_weights, fidelity, bandgap) tuples
             
         Returns:
             element_ids_batch: [batch_size, max_elements] tensor
             element_weights_batch: [batch_size, max_elements] tensor
+            fidelity_ids_batch: [batch_size] tensor
             bandgaps_batch: [batch_size] tensor
         """
-        element_ids_batch, element_weights_batch, bandgaps_batch = zip(*batch)
+        element_ids_batch, element_weights_batch, fidelity_ids_batch, bandgaps_batch = zip(*batch)
         
         # Convert to tensors
         element_ids_batch = torch.tensor(element_ids_batch, dtype=torch.long)
         element_weights_batch = torch.tensor(element_weights_batch, dtype=torch.float32)
+        fidelity_ids_batch = torch.tensor(fidelity_ids_batch, dtype=torch.long)
         bandgaps_batch = torch.tensor(bandgaps_batch, dtype=torch.float32)
         
-        return element_ids_batch, element_weights_batch, bandgaps_batch
+        return element_ids_batch, element_weights_batch, fidelity_ids_batch, bandgaps_batch
     
     def normalize_target(self, dataset):
-        bandgaps = [bg for _, _, bg in dataset]
+        bandgaps = [bg for _, _, _, bg in dataset]  # Updated for 4-tuple dataset
         mean = np.mean(bandgaps)
         std = np.std(bandgaps)
         
         normalized_dataset = []
-        for element_ids, element_weights, bg in dataset:
-            normalized_dataset.append((element_ids, element_weights, (bg - mean) / std))
+        for element_ids, element_weights, fid, bg in dataset:  # Updated for 4-tuple dataset
+            normalized_dataset.append((element_ids, element_weights, fid, (bg - mean) / std))
         
         return normalized_dataset, mean, std
     
     def nan_hook(self, dataset):
-        for i, (element_ids, element_weights, bg) in enumerate(dataset):
+        for i, (element_ids, element_weights, fid, bg) in enumerate(dataset):  # Updated for 4-tuple dataset
             if np.isnan(bg):
                 print(f"Found nan at index {i}")
                 print(f"Element IDs: {element_ids}")
                 print(f"Element weights: {element_weights}")
+                print(f"Fidelity: {fid}")
                 print(f"Bandgap: {bg}")
                 break
     
     def preprocess_data(self):
         # Load data
-        df = pd.read_csv("data/data.csv")
+        df = pd.read_csv("data/all_data.csv")
         
         # Clean up formulas
         df = df[~df["formula"].isin(["nan","NaN","NAN"])].dropna(subset=["formula"])
@@ -279,13 +282,14 @@ class MultiFidelityPreprocessing:
         
         bandgaps = df[self.property_key].values  
         formulas = df["formula"].tolist()
+        fidelities = df["fidelity"].values
         
         # Build dataset with set representation
         dataset = []
-        for formula, bg in zip(formulas, bandgaps):
+        for formula, bg, fid in zip(formulas, bandgaps, fidelities):
             element_ids, element_weights = self.formula_to_set_representation(formula)
-            dataset.append((element_ids, element_weights, bg))
-        
+            dataset.append((element_ids, element_weights, int(fid), bg))
+            
         # Sample if needed
         if self.sample_size is not None and self.sample_size < len(dataset):
             dataset = random.sample(dataset, self.sample_size)

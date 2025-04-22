@@ -44,6 +44,8 @@ def gllbsc_data():
     df = pd.DataFrame()
     df['formula'] = df_gllbsc['formula']
     df['BG'] = np.minimum(df_gllbsc['QP_indirect'], df_gllbsc['QP_direct'])
+    #divide by 1000
+    df['BG'] = df['BG']/1000
     fidelity = [mapping['GLLBSC']]*len(df_gllbsc)
     df['fidelity'] = fidelity
     df['fidelity'] = df['fidelity'].astype(int)
@@ -106,13 +108,15 @@ df_expt = expt_data()
 df_gllbsc = gllbsc_data()
 
 #group by functional
-df_GGA = pd.concat([df_mp_gga, df_mp_ggau,df_hse_gga, df_pbesol])
+df_GGA = pd.concat([df_mp_gga,df_hse_gga, df_pbesol])
+df_GGAU = df_mp_ggau
 df_SCAN = pd.concat([df_mp_scan, df_sol_scan])
 df_GLLBSC = pd.concat([df_mp_gllbsc, df_gllbsc])
 df_HSE = df_hse
 df_EXPT = df_expt
 #remove duplicates of the whole row
 df_GGA = df_GGA.drop_duplicates()
+df_GGAU = df_GGAU.drop_duplicates()
 df_SCAN = df_SCAN.drop_duplicates()
 df_GLLBSC = df_GLLBSC.drop_duplicates()
 df_HSE = df_HSE.drop_duplicates()
@@ -127,6 +131,7 @@ print("EXPT duplicates: ", df_EXPT.duplicated(subset=['formula']).sum())
 #save them to csv
 
 df_GGA.to_csv('data/train/GGA.csv', index=False)
+df_GGAU.to_csv('data/train/GGAU.csv', index=False)
 df_SCAN.to_csv('data/train/SCAN.csv', index=False)
 df_GLLBSC.to_csv('data/train/GLLBSC.csv', index=False)
 df_HSE.to_csv('data/train/HSE.csv', index=False)
