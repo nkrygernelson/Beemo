@@ -165,7 +165,6 @@ cython_debug/
 *.cython_debug/
 
 #predictions
-predictions/
 data/cif_structures/
 data/mp.2019.04.01.json
 
