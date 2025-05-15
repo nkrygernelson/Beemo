@@ -278,6 +278,7 @@ class MultiFidelityPreprocessing:
         
         # Clean up formulas
         df = df[~df["formula"].isin(["nan","NaN","NAN"])].dropna(subset=["formula"])
+        df = df.dropna()
         df['formula'] = df['formula'].apply(lambda x: str(x).replace("NaN", "Na1N"))
         
         bandgaps = df[self.property_key].values  
