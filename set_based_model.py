@@ -26,7 +26,7 @@ class ElementEmbedding(nn.Module):
 
 class FidelityEmbedding(nn.Module):
     """Embeds the fidelity of the data."""
-    def __init__(self, num_fidelities = 6, embedding_dim=16):
+    def __init__(self, num_fidelities = 5, embedding_dim=16):
         super(FidelityEmbedding, self).__init__()
         self.embedding = nn.Embedding(num_fidelities, embedding_dim)
     
@@ -191,12 +191,12 @@ class PredictionHead(nn.Module):
 
 class SetBasedBandgapModel(nn.Module):
     """Complete model for bandgap prediction using set-based representation."""
-    def __init__(self, num_elements=118, embedding_dim=128, fidelity_dim=16,
+    def __init__(self, num_elements=118, num_fidelities=5,embedding_dim=128, fidelity_dim=16,
                  num_blocks=3, num_heads=4, hidden_dim=128, dropout=0.1,
                  pooling_type='attention'):
         super(SetBasedBandgapModel, self).__init__()
         self.element_embedding = ElementEmbedding(num_elements, embedding_dim)
-        self.fidelity_embedding = FidelityEmbedding(fidelity_dim, fidelity_dim)
+        self.fidelity_embedding = FidelityEmbedding(num_fidelities, fidelity_dim)
         self.deep_set = DeepSet(embedding_dim+fidelity_dim, num_blocks, num_heads, dropout, pooling_type)
         self.prediction_head = PredictionHead(embedding_dim+fidelity_dim, hidden_dim, dropout)
         
