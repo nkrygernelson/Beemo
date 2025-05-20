@@ -11,7 +11,7 @@ def objective(trial):
     model_params = {
     "num_elements": 118,
     "num_fidelities": 5,
-    "embedding_dim": 114,
+    "embedding_dim": trial.suggest,
     "fidelity_dim": 16,
     "num_blocks": 5,
     "num_heads": 10,
@@ -26,7 +26,7 @@ def objective(trial):
         "learning_rate": 0.001,
         "weight_decay": 1e-5,
     }
-    
+
     mp = True
     if mp:
         fidelity_map = {"pbe":0, "scan":1, "gllbsc":2, "hse":3, "expt":4}
