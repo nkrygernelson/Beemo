@@ -12,7 +12,7 @@ from preprocess_set_data import MultiFidelityPreprocessing
 
 
 class MultiTrainer:
-    def __init__(self, subsample_dict = None, model_params = None, training_params = None,fidelity_map = None, property_name = None):
+    def __init__(self, subsample_dict = None, model_params = None, training_params = None,fidelity_map = None, property_name = None, fidelities_dir = None):
         if model_params is None:
             self.model_params = {
                 "num_elements": 118,
@@ -50,8 +50,13 @@ class MultiTrainer:
             self.property_name = "BG"
         else:
             self.property_name = property_name
-
+        self.device = torch.device("cuda" if torch.cuda.is_available(
+        ) else "cpu" if torch.backends.mps.is_available() else "cpu")
         # --- Google Drive Configuration ---
+        if fidelities_dir is None:
+            self.fidelities_dir = "train_homemade"
+        else:
+            self.fidelities_dir = fidelities_dir
         self.GOOGLE_DRIVE = False  # SET THIS TO True TO ENABLE GOOGLE DRIVE SAVING
         self.MAC = True
 
@@ -76,6 +81,7 @@ class MultiTrainer:
 
         combined_train_df = pd.DataFrame()
         test_datasets = {}
+        train_stats = {}
         train_split = self.training_params["multi_train_split"]
 
         # Process each fidelity dataset
@@ -86,7 +92,7 @@ class MultiTrainer:
             # Assumes input data is in 'data/train/' relative to save_prefix if GOOGLE_DRIVE is True
             # Or locally if GOOGLE_DRIVE is False
             data_file_path = os.path.join(
-                self.save_prefix, 'data', 'train', f'{fidelity_name}.csv')
+                self.save_prefix, 'data', self.fidelities_dir, f'{fidelity_name}.csv')
 
             # Fallback to local path if file not found at prefixed path (e.g., if inputs are always local)
             # only try local if prefixed path failed AND prefix exists
@@ -120,7 +126,8 @@ class MultiTrainer:
             df = pd.read_csv(data_file_path)
 
             # Shuffle the dataset
-
+            df = df.drop_duplicates()
+            df.dropna()
             if self.subsample_dict:
                 sample_frac = self.subsample_dict.get(fidelity_name, 1)
 
@@ -131,7 +138,14 @@ class MultiTrainer:
             test_size = int((1-train_split) * len(df))
             test_df = df.iloc[:test_size].copy()
             train_df = df.iloc[test_size:].copy()
-
+            print(train_df.columns)
+            mean = train_df[self.property_name].mean()
+            std = train_df[self.property_name].std()
+            train_stats[fidelity_name] = {
+                "mean": mean,
+                "std": std,
+                "num_samples": len(train_df)
+            }
             # Add fidelity column
             train_df['fidelity'] = fidelity_id
             test_df['fidelity'] = fidelity_id
@@ -149,8 +163,7 @@ class MultiTrainer:
         if combined_train_df.empty and self.fidelity_map:
             print("WARNING: No data was loaded into combined_train_df. Check data paths and file availability.")
        
-
-        return combined_train_df, test_datasets
+        return combined_train_df, test_datasets, train_stats
 
 
     def create_test_dataloader(self, test_df, preprocess, mean, std,):
@@ -179,9 +192,10 @@ class MultiTrainer:
             collate_fn=preprocess.collate_fn
         )
         return test_loader
+    
 
 
-    def train_multifidelity_model(self, combined_train_df, model_params=None,pooling_type="gated"):
+    def train_multifidelity_model(self, combined_train_df, model_params=None, pooling_type="gated"):
         """
         Train a multi-fidelity model using the  combined training dataset.
         """
@@ -194,7 +208,7 @@ class MultiTrainer:
         data_dir_path = os.path.join(self.save_prefix, "data")
         predictions_dir_path = os.path.join(
             self.save_prefix, "predictions", "multifidelity")
-
+        combined_train_df = combined_train_df.drop_duplicates()
         # Save the combined training dataset
         os.makedirs(data_dir_path, exist_ok=True)
         combined_train_csv_path = os.path.join(
@@ -270,12 +284,13 @@ class MultiTrainer:
         device = torch.device("cuda" if torch.cuda.is_available(
         ) else "cpu" if torch.backends.mps.is_available() else "cpu")
         print(f"Using device: {device}")
+        self.device = device
         model.to(device)
-        # model = torch.compile(model, mode ="default")
+        #model = torch.compile(model, mode ="default")
         learning_rate = self.training_params.get("learning_rate", 0.001)
         weight_decay = self.training_params.get("weight_decay", 1e-5)
         criterion = nn.MSELoss()
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=self.training_params["weight_decay"])
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode='min', factor=0.5, patience=5,
         )
@@ -371,17 +386,31 @@ class MultiTrainer:
         model.load_state_dict(torch.load(best_model_path))
         print(f"Loaded best model from: {best_model_path}")
 
-        return model, mean, std, preprocess
+        return model,preprocess
 
 
-    def evaluate_on_fidelity(self, model, test_loader, device, mean, std):
-        """
-        Evaluate the model on a specific fidelity dataset.
-        """
+    def evaluate_on_fidelity(self, model, test_loader,  mean, std, device=None):
+        '''
+        Evaluates the given model on a test dataset with a specific fidelity, returning regression metrics.
+
+        Args:
+            model (torch.nn.Module): The model to evaluate.
+            test_loader (torch.utils.data.DataLoader): DataLoader providing test data batches.
+            mean (float or np.ndarray): Mean value(s) used for denormalizing predictions and targets.
+            std (float or np.ndarray): Standard deviation(s) used for denormalizing predictions and targets.
+            device (torch.device or str, optional): Device to run evaluation on. Defaults to self.device.
+
+        Returns:
+            Tuple[dict, list, list]:
+                - metrics (dict): Dictionary containing 'mae', 'rmse', and 'r2' regression metrics.
+                - predictions (list): List of denormalized model predictions.
+                - targets (list): List of denormalized ground truth values.
+        '''
         model.eval()
         predictions = []
         targets = []
-
+        if device is None:
+            device = self.device
         with torch.no_grad():
             for element_ids, element_weights, fidelity_ids, bandgaps in test_loader:
                 element_ids = element_ids.to(device)
@@ -560,7 +589,7 @@ class MultiTrainer:
         print("\n" + "="*50)
         print("Preparing Datasets")
         print("="*50 + "\n")
-        combined_train_df, test_datasets = self.prepare_datasets_for_multifidelity(
+        combined_train_df, test_datasets, train_stats= self.prepare_datasets_for_multifidelity(
             subsample_dict=self.subsample_dict)
 
         if combined_train_df.empty:
@@ -572,7 +601,7 @@ class MultiTrainer:
         print("Training Multi-Fidelity Model")
         print("="*50 + "\n")
         # Pass model_params from the __main__ block
-        model, mean, std, preprocess = self.train_multifidelity_model(
+        model, preprocess = self.train_multifidelity_model(
             combined_train_df, model_params=self.model_params, pooling_type=self.model_params.get('pooling_type', 'gated'))
 
         results = {}
@@ -587,6 +616,7 @@ class MultiTrainer:
         else:
             for fidelity_name, test_df in test_datasets.items():
                 print(f"Evaluating on {fidelity_name} dataset...")
+                mean, std = train_stats["fidelity_name"]["mean"], train_stats["fidelity_name"]["std"]
                 test_loader = self.create_test_dataloader(
                     test_df, preprocess, mean, std)
                 metrics, predictions, targets = self.evaluate_on_fidelity(

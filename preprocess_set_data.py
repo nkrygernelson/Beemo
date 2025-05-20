@@ -279,12 +279,14 @@ class MultiFidelityPreprocessing:
         # Clean up formulas
         df = df[~df["formula"].isin(["nan","NaN","NAN"])].dropna(subset=["formula"])
         df = df.dropna()
+        df = df.drop_duplicates()
+        print("Duplicates: ", df.duplicated(subset=['formula']).sum())
         df['formula'] = df['formula'].apply(lambda x: str(x).replace("NaN", "Na1N"))
         
         bandgaps = df[self.property_key].values  
         formulas = df["formula"].tolist()
         fidelities = df["fidelity"].values
-        
+
         # Build dataset with set representation
         dataset = []
         for formula, bg, fid in zip(formulas, bandgaps, fidelities):

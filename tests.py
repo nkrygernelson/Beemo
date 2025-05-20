@@ -20,12 +20,12 @@ model_params = {
 }
 training_params = {
     "multi_train_split": 0.8,
-    "epochs": 2000,
+    "epochs": 200,
     "batch_size": 32,
     "learning_rate": 0.001,
     "weight_decay": 1e-5,
 }
-subsample_dict = {"pbe": 1, "scan": 1, "gllb-sc": 1, "hse": 1, "expt": 1}
+subsample_dict = {"pbe": 0.6, "scan": 1, "gllb-sc": 1, "hse": 1, "expt": 1}
 trainer = MultiTrainer(model_params=model_params, subsample_dict=subsample_dict, training_params=training_params)
 results, plot_paths = trainer.run_multifidelity_experiments()
 print(results)
